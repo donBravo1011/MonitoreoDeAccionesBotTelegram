@@ -1,36 +1,95 @@
 from telegram import Update
 from telegram.ext import Application, MessageHandler, CommandHandler, filters, ContextTypes, CallbackContext
 import yfinance as yf
+from pycoingecko import CoinGeckoAPI
+import time
 
 # Función para verificar si el ticker es válido
 user_data = {}
 
 
-def es_accion_valida(ticker):
+async def obtener_precio_cripto(ticker):
+    cg = CoinGeckoAPI()
+
+    # Convertimos el ticker a minúsculas para CoinGecko
+    ticker = ticker.lower()
+
     try:
-        stock = yf.Ticker(ticker)
-        info = stock.info
-        current_price = info.get("currentPrice")
-        if current_price == None:
-            return False
-        return "longName" in info and info["longName"] is not None
-    except Exception:
-        return False
+        data = cg.get_price(ids=ticker, vs_currencies='usd')
+        print(f"Respuesta de CoinGecko para {ticker}: {data}")  # Depuración
+        return data.get(ticker, {}).get('usd', None)
+    except Exception as e:
+        print(f"Error al obtener el precio de {ticker}: {e}")
+        return None
 
 
 async def start(update, context):
     """ Mensaje de bienvenida """
     id = update.message.from_user.id
 
-    texto = """Este bot te ayuda a monitorear el precio de una acción y te avisará cuando llegue al valor que indiques.
+    texto = """Este bot te ayuda a monitorear el precio de una criptomoneda y te avisará cuando alcance el valor que indiques.
 
-    🔹 Instrucciones:
-    1️⃣ Envía el ticker de la acción que quieres monitorear (Ejemplo: AAPL para Apple).
-    2️⃣ Envía el precio al cual deseas recibir una alerta (Ejemplo: 150).
+🔹 Instrucciones:
+1️⃣ Envía el nombre o ticker de la criptomoneda que quieres monitorear (Ejemplo: bitcoin para Bitcoin o ethereum para Ethereum).
+2️⃣ Envía el precio al que deseas recibir una alerta (Ejemplo: 45000 para Bitcoin).
 
-    Cuando el precio de la acción alcance el valor que indicaste, recibirás una notificación."""
+Cuando el precio de la criptomoneda alcance el valor que indicaste, recibirás una notificación."""
     print(f"Ha iniciado el bot el usuario con id: {id}")
     await update.message.reply_text(texto)
+
+
+async def mostrar_datos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ Muestra los datos almacenados para el usuario """
+    user_id = update.message.from_user.id
+    if user_id in user_data and "ticker" in user_data[user_id] and "precio" in user_data[user_id]:
+        ticker = user_data[user_id]["ticker"]
+        precio = user_data[user_id]["precio"]
+        direcion = user_data[user_id]["direc"]
+        await update.message.reply_text(f"📊 Estás monitoreando {ticker} con un objetivo de ${precio} y estas esperando que el precio {direcion}")
+    else:
+        await update.message.reply_text("⚠️ No tienes ninguna acción en monitoreo aún.")
+
+
+async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ Muestra las caracteristicas del boy """
+    texto = """📌 Cómo usar el bot 📌
+
+Este bot te ayuda a monitorear el precio de una criptomoneda y te avisará cuando alcance el valor que indiques.
+
+🔹 Instrucciones:
+1️⃣ Envía el nombre o ticker de la criptomoneda que quieres monitorear (Ejemplo: bitcoin para Bitcoin o ethereum para Ethereum).
+2️⃣ Envía el precio al que deseas recibir una alerta (Ejemplo: 45000 para Bitcoin).
+
+Cuando el precio de la criptomoneda alcance el valor que indicaste, recibirás una notificación.
+
+🔹 Comandos disponibles:
+📊 /misdatos → Muestra qué criptomoneda estás monitoreando y el precio de alerta configurado.
+
+Si tienes dudas, ¡envíame un mensaje! 🚀"""
+    await update.message.reply_text(texto)
+
+
+def main():
+    """ Configuración del bot """
+    app = Application.builder().token(
+        "8058867640:AAFktZcB5kmh0pqL4q2grAUDzP_Nje-sp5c").build()
+
+    # Handlers
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("misdatos", mostrar_datos))
+    app.add_handler(CommandHandler("help", help))
+    # # Para manejar mensajes
+    app.add_handler(MessageHandler(
+        ~filters.COMMAND, recibir_ticker_precio))  # Captura tickers
+
+    print("🤖 Bot en marcha...")
+
+    # # Configurar el JobQueue para ejecutar la verificación del precio cada minuto
+    job_queue = app.job_queue
+    # # Verificar cada 60 segundos
+    job_queue.run_repeating(verificar_precio, interval=60, first=10)
+
+    app.run_polling()
 
 
 async def recibir_ticker_precio(update, context):
@@ -46,17 +105,10 @@ async def recibir_ticker_precio(update, context):
             try:
                 ticker = context.user_data.get("ticker", None)
                 if ticker is None:
-                    await update.message.reply_text("⚠️ Primero dime qué *ticker* quieres monitorear.")
+                    await update.message.reply_text("⚠️ Primero dime qué ticker quieres monitorear.")
                     return
 
-                token = yf.Ticker(ticker)
-
-                info_token = token.info
-                try:
-                    current_price = info_token.get("currentPrice")
-                except Exception as e:
-                    print(f"Error obteniendo el precio: {e}")
-                    exit()
+                current_price = await obtener_precio_cripto(ticker)
 
                 # Convertimos a número
                 precio_objetivo = float(update.message.text)
@@ -86,55 +138,17 @@ async def recibir_ticker_precio(update, context):
         user_id = update.message.from_user.id
         ticker = update.message.text.upper()
 
-        token = yf.Ticker(ticker)
+        precio = await obtener_precio_cripto(ticker)
 
-        info_token = token.info
-        try:
-            current_price = info_token.get("currentPrice")
-        except Exception as e:
-            print(f"Error obteniendo el precio: {e}")
-            exit()
-
-        if es_accion_valida(ticker):
+        if (precio == None):
+            await update.message.reply_text(f"❌ {ticker} no es una criptomoneda válida. Por favor, envía un nombre o ticker correcto.")
+        else:
             # Guardamos el ticker en user_data y cambiamos el estado
             user_data[user_id] = {"ticker": ticker}
             context.user_data['ticker'] = ticker
             # Cambiamos el estado
             context.user_data['estado'] = 'esperando_precio'
-            await update.message.reply_text(f"✅ {ticker} es una acción válida y su precio es {current_price}. ¿A qué precio quieres que te avise?")
-        else:
-            await update.message.reply_text(f"❌ {ticker} no es una acción válida. Intenta con otro.")
-
-
-async def mostrar_datos(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ Muestra los datos almacenados para el usuario """
-    user_id = update.message.from_user.id
-    if user_id in user_data and "ticker" in user_data[user_id] and "precio" in user_data[user_id]:
-        ticker = user_data[user_id]["ticker"]
-        precio = user_data[user_id]["precio"]
-        direcion = user_data[user_id]["direc"]
-        await update.message.reply_text(f"📊 Estás monitoreando {ticker} con un objetivo de ${precio} y estas esperando que el precio {direcion}")
-    else:
-        await update.message.reply_text("⚠️ No tienes ninguna acción en monitoreo aún.")
-
-
-async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ Muestra las caracteristicas del boy """
-    texto = """📌 Cómo usar el bot 📌
-
-    Este bot te ayuda a monitorear el precio de una acción y te avisará cuando llegue al valor que indiques.
-
-    🔹 Instrucciones:
-    1️⃣ Envía el ticker de la acción que quieres monitorear (Ejemplo: AAPL para Apple).
-    2️⃣ Envía el precio al cual deseas recibir una alerta (Ejemplo: 150).
-
-    Cuando el precio de la acción alcance el valor que indicaste, recibirás una notificación.
-
-    🔹 Comandos disponibles:
-    📊 /misdatos → Muestra qué acción estás monitoreando y el precio de alerta configurado.
-
-    Si tienes dudas, ¡envíame un mensaje! 🚀"""
-    await update.message.reply_text(texto)
+            await update.message.reply_text(f"✅ {ticker} es una cryptomoneda válida y su precio es {precio}. ¿A qué precio quieres que te avise?")
 
 
 async def verificar_precio(context: CallbackContext):
@@ -153,9 +167,7 @@ async def verificar_precio(context: CallbackContext):
                 target_price = data["precio"]
                 direction = data["direc"]
 
-                stock = yf.Ticker(ticker)
-                info = stock.info
-                current_price = info.get("currentPrice")
+                current_price = await obtener_precio_cripto(ticker)
 
                 if direction == "suba" and current_price >= target_price:
                     await context.bot.send_message(user_id, f"📉 El precio de {ticker} ha subido y alcanzó tu valor objetivo de {target_price}. El precio actual es {current_price}.")
@@ -173,28 +185,6 @@ async def verificar_precio(context: CallbackContext):
                     f"Faltan campos para el usuario {user_id}, no se realiza comprobación.")
 
 
-def main():
-    """ Configuración del bot """
-    app = Application.builder().token(
-        "7697013034:AAE7OCXTPo0FYbSbgWpGqC-GBO7cOSjV9yY").build()
-
-    # Handlers
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("misdatos", mostrar_datos))
-    app.add_handler(CommandHandler("help", help))
-    # Para manejar mensajes
-    app.add_handler(MessageHandler(
-        ~filters.COMMAND, recibir_ticker_precio))  # Captura tickers
-
-    print("🤖 Bot en marcha...")
-
-    # Configurar el JobQueue para ejecutar la verificación del precio cada minuto
-    job_queue = app.job_queue
-    # Verificar cada 60 segundos
-    job_queue.run_repeating(verificar_precio, interval=60, first=10)
-
-    app.run_polling()
-
-
 if __name__ == "__main__":
+
     main()
