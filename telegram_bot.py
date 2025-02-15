@@ -1,5 +1,5 @@
 from telegram import Update
-from telegram.ext import Application, MessageHandler, CommandHandler, filters, ContextTypes
+from telegram.ext import Application, MessageHandler, CommandHandler, filters, ContextTypes, CallbackContext
 import yfinance as yf
 
 # Función para verificar si el ticker es válido
@@ -10,6 +10,9 @@ def es_accion_valida(ticker):
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
+        current_price = info.get("currentPrice")
+        if current_price == None:
+            return False
         return "longName" in info and info["longName"] is not None
     except Exception:
         return False
@@ -57,8 +60,10 @@ async def recibir_ticker_precio(update, context):
                 user_data[user_id]["precio"] = precio_objetivo
                 if (precio_objetivo > current_price):
                     print("El precio que busca es mayor")
+                    user_data[user_id]["direc"] = "suba"
                 else:
                     print("El precio que busca es menor")
+                    user_data[user_id]["direc"] = "baje"
                 # Obtenemos el ticker que ya guardamos
                 ticker = context.user_data['ticker']
 
@@ -104,7 +109,8 @@ async def mostrar_datos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id in user_data and "ticker" in user_data[user_id] and "precio" in user_data[user_id]:
         ticker = user_data[user_id]["ticker"]
         precio = user_data[user_id]["precio"]
-        await update.message.reply_text(f"📊 Estás monitoreando *{ticker}* con un objetivo de **${precio}**")
+        direcion = user_data[user_id]["direc"]
+        await update.message.reply_text(f"📊 Estás monitoreando {ticker} con un objetivo de ${precio} y estas esperando que el precio {direcion}")
     else:
         await update.message.reply_text("⚠️ No tienes ninguna acción en monitoreo aún.")
 
@@ -128,6 +134,42 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(texto)
 
 
+async def verificar_precio(context: CallbackContext):
+
+    if not user_data:
+        print("La variable está vacía, no hace falta comprobar nada.")
+    else:
+        print("Estoy comprobando")
+        # Convertimos las claves a una lista para evitar modificar el diccionario mientras se itera
+        for user_id in list(user_data.keys()):
+            data = user_data[user_id]
+
+            # Verificamos si todos los campos necesarios están presentes
+            if all(key in data for key in ["ticker", "precio", "direc"]):
+                ticker = data["ticker"]
+                target_price = data["precio"]
+                direction = data["direc"]
+
+                stock = yf.Ticker(ticker)
+                info = stock.info
+                current_price = info.get("currentPrice")
+
+                if direction == "suba" and current_price >= target_price:
+                    await context.bot.send_message(user_id, f"📉 El precio de {ticker} ha subido y alcanzó tu valor objetivo de {target_price}. El precio actual es {current_price}.")
+                    del user_data[user_id]
+                elif direction == "baje" and current_price <= target_price:
+                    await context.bot.send_message(user_id, f"📈 El precio de {ticker} ha bajado y alcanzó tu valor objetivo de {target_price}. El precio actual es {current_price}.")
+                    del user_data[user_id]
+                else:
+                    print("No se ha llegado al precio objetivo para notificacion")
+                # Eliminar la acción de monitoreo si ya alcanzó el precio
+
+            else:
+                # Si falta algún campo, no hacer nada y continuar con la siguiente iteración
+                print(
+                    f"Faltan campos para el usuario {user_id}, no se realiza comprobación.")
+
+
 def main():
     """ Configuración del bot """
     app = Application.builder().token(
@@ -142,6 +184,12 @@ def main():
         ~filters.COMMAND, recibir_ticker_precio))  # Captura tickers
 
     print("🤖 Bot en marcha...")
+
+    # Configurar el JobQueue para ejecutar la verificación del precio cada minuto
+    job_queue = app.job_queue
+    # Verificar cada 60 segundos
+    job_queue.run_repeating(verificar_precio, interval=60, first=10)
+
     app.run_polling()
 
 
