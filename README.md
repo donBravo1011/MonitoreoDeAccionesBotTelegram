@@ -21,12 +21,21 @@ pip install -r requirements.txt
 python crypto_bot.py   # Para el bot de criptomonedas  
 python telegram_bot.py # Para el bot de acciones  
 ```
-## 📦 Dependencias
-Asegúrate de instalar los siguientes paquetes antes de ejecutar el bot:
+## ⚙️ Funcionalidades  
 
-```bash
-pip install python-telegram-bot
-pip install python-telegram-bot[job-queue]
-pip install yfinance
-pip install pycoingecko
-```
+Este bot te permite monitorear el precio de **acciones y criptomonedas** y recibir alertas cuando alcancen un valor específico.  
+
+### 📌 Comandos disponibles  
+
+- **`/start`** → Inicia el bot y muestra un mensaje de bienvenida con instrucciones.  
+- **`/misdatos`** → Muestra la criptomoneda o acción que estás monitoreando y el precio de alerta configurado.  
+- **`/help`** → Explica cómo funciona el bot y cómo configurar alertas.  
+
+### 🚀 ¿Cómo usarlo?  
+1️⃣ Envía el **nombre o ticker** de la criptomoneda o acción que quieres monitorear (Ejemplo: `Bitcoin` o `AAPL` para Apple).  
+
+2️⃣ Envía el **precio objetivo** al que deseas recibir una alerta (Ejemplo: `45000` para Bitcoin o `150` para Apple).  
+
+3️⃣ ¡Listo! Cuando el precio alcance tu objetivo, recibirás una **notificación automática**.  
+
+📊 **El bot consulta los precios en tiempo real usando Yahoo Finance para acciones y CoinGecko para criptomonedas.**
