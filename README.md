@@ -5,13 +5,16 @@ Espero que te sea útil y puedas sacarle el máximo provecho.
 
 ## ⚙️ Configuración
 1️⃣ Clona este repositorio en tu ordenador.
+
 2️⃣ Instala las dependencias utilizando el siguiente comando:
 
 ```bash
 pip install -r requirements.txt
 ```
 3️⃣ Crea tu bot en Telegram a través de BotFather y obtén su token.
+
 4️⃣ Reemplaza 'TU_TOKEN_AQUI' en la función main() de los archivos crypto_bot.py y telegram_bot.py con el token proporcionado por BotFather.
+
 5️⃣ Ejecuta el bot con uno de los siguientes comandos según el bot que quieras usar:
 
 ```bash
