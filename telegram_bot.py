@@ -2,8 +2,9 @@ from telegram import Update
 from telegram.ext import Application, MessageHandler, CommandHandler, filters, ContextTypes, CallbackContext
 import yfinance as yf
 
-# Función para verificar si el ticker es válido
 user_data = {}
+
+# Función para verificar si el ticker es válido
 
 
 def es_accion_valida(ticker):
@@ -159,13 +160,14 @@ async def verificar_precio(context: CallbackContext):
 
                 if direction == "suba" and current_price >= target_price:
                     await context.bot.send_message(user_id, f"📉 El precio de {ticker} ha subido y alcanzó tu valor objetivo de {target_price}. El precio actual es {current_price}.")
+                    # Eliminar la acción de monitoreo si ya alcanzó el precio
                     del user_data[user_id]
                 elif direction == "baje" and current_price <= target_price:
                     await context.bot.send_message(user_id, f"📈 El precio de {ticker} ha bajado y alcanzó tu valor objetivo de {target_price}. El precio actual es {current_price}.")
+                    # Eliminar la acción de monitoreo si ya alcanzó el precio
                     del user_data[user_id]
                 else:
                     print("No se ha llegado al precio objetivo para notificacion")
-                # Eliminar la acción de monitoreo si ya alcanzó el precio
 
             else:
                 # Si falta algún campo, no hacer nada y continuar con la siguiente iteración

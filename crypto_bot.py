@@ -4,7 +4,6 @@ import yfinance as yf
 from pycoingecko import CoinGeckoAPI
 import time
 
-# Función para verificar si el ticker es válido
 user_data = {}
 
 
@@ -78,15 +77,15 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("misdatos", mostrar_datos))
     app.add_handler(CommandHandler("help", help))
-    # # Para manejar mensajes
+    # Para manejar mensajes
     app.add_handler(MessageHandler(
         ~filters.COMMAND, recibir_ticker_precio))  # Captura tickers
 
     print("🤖 Bot en marcha...")
 
-    # # Configurar el JobQueue para ejecutar la verificación del precio cada minuto
+    # Configurar el JobQueue para ejecutar la verificación del precio cada minuto
     job_queue = app.job_queue
-    # # Verificar cada 60 segundos
+    # Verificar cada 60 segundos
     job_queue.run_repeating(verificar_precio, interval=60, first=10)
 
     app.run_polling()
@@ -171,13 +170,14 @@ async def verificar_precio(context: CallbackContext):
 
                 if direction == "suba" and current_price >= target_price:
                     await context.bot.send_message(user_id, f"📉 El precio de {ticker} ha subido y alcanzó tu valor objetivo de {target_price}. El precio actual es {current_price}.")
+                    # Eliminar la acción de monitoreo si ya alcanzó el precio
                     del user_data[user_id]
                 elif direction == "baje" and current_price <= target_price:
                     await context.bot.send_message(user_id, f"📈 El precio de {ticker} ha bajado y alcanzó tu valor objetivo de {target_price}. El precio actual es {current_price}.")
+                    # Eliminar la acción de monitoreo si ya alcanzó el precio
                     del user_data[user_id]
                 else:
                     print("No se ha llegado al precio objetivo para notificacion")
-                # Eliminar la acción de monitoreo si ya alcanzó el precio
 
             else:
                 # Si falta algún campo, no hacer nada y continuar con la siguiente iteración
