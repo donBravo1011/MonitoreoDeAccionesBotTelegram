@@ -71,7 +71,7 @@ Si tienes dudas, ¡envíame un mensaje! 🚀"""
 def main():
     """ Configuración del bot """
     app = Application.builder().token(
-        "8058867640:AAFktZcB5kmh0pqL4q2grAUDzP_Nje-sp5c").build()
+        "TU_TOKEN_AQUI").build()
 
     # Handlers
     app.add_handler(CommandHandler("start", start))

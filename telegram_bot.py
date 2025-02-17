@@ -178,7 +178,7 @@ async def verificar_precio(context: CallbackContext):
 def main():
     """ Configuración del bot """
     app = Application.builder().token(
-        "7697013034:AAE7OCXTPo0FYbSbgWpGqC-GBO7cOSjV9yY").build()
+        "TU_TOKEN_AQUI").build()
 
     # Handlers
     app.add_handler(CommandHandler("start", start))
